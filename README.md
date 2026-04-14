@@ -2,6 +2,11 @@
 
 이 프로젝트는 Ollama의 Gemma 모델과 LangChain, LangGraph, 그리고 Flask를 사용하여 국가 연구개발(R&D) 관련 법령 및 규정에 답변하는 프리미엄 RAG(Retrieval-Augmented Generation) 시스템입니다.
 
+## 📸 실행 화면
+| 메인 및 디버깅 대시보드 | 초기화 과정 시각화 |
+|:---:|:---:|
+| ![Main Screen](./test1.png) | ![Init Steps](./test2.png) |
+
 ## 🌟 주요 기능
 - **웹 기반 챗봇 인터페이스**: 현대적이고 직관적인 채팅 UI를 통해 질의응답을 수행합니다.
 - **실시간 디버깅 대시보드**:

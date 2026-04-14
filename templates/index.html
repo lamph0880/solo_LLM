@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma RAG 디버깅 대시보드</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --accent-color: #38bdf8;
+            --text-color: #f1f5f9;
+            --text-dim: #94a3b8;
+            --user-msg: #1e293b;
+            --ai-msg: #334155;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.1) 0px, transparent 50%);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 99px;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            padding: 1.5rem;
+            gap: 1.5rem;
+            height: calc(100vh - 70px);
+        }
+
+        /* 채팅 섹션 */
+        .chat-section {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1.25rem;
+            border-radius: 1rem;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: var(--accent-color);
+            color: #000;
+            border-bottom-right-radius: 0.2rem;
+        }
+
+        .ai-message {
+            align-self: flex-start;
+            background: var(--ai-msg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 0.2rem;
+        }
+
+        .input-area {
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            color: white;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent-color);
+        }
+
+        button {
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: filter 0.2s;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+        }
+
+        button:disabled {
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
+        /* 디버그 섹션 */
+        .debug-section {
+            flex: 1;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .debug-header {
+            padding: 1rem 1.5rem;
+            background: rgba(15, 23, 42, 0.5);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .debug-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            font-size: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .pipeline-step {
+            border-left: 2px solid var(--accent-color);
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .pipeline-step::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 8px;
+            height: 8px;
+            background: var(--accent-color);
+            border-radius: 50%;
+        }
+
+        .pipeline-step.error-step {
+            border-left-color: #ef4444;
+        }
+
+        .pipeline-step.error-step::before {
+            background: #ef4444;
+        }
+
+        .step-title {
+            color: var(--accent-color);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .doc-snippet {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-dim);
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Gemma RAG Agent</h1>
+        <div class="status-badge">System Active</div>
+    </header>
+
+    <main>
+        <div class="chat-section">
+            <div id="chat-window">
+                <div class="message ai-message">
+                    안녕하세요! 국가 연구개발(R&D) 관련 법령 및 규정에 대해 궁금한 점을 물어보세요.
+                </div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="질문을 입력하세요..." onkeypress="handleKeyPress(event)">
+                <button id="send-btn" onclick="askQuestion()">
+                    전송
+                </button>
+            </div>
+        </div>
+
+        <div class="debug-section">
+            <div class="debug-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                Processing Pipeline
+                <div class="loader" id="loader"></div>
+            </div>
+            <div class="debug-content" id="debug-window">
+                <div style="color: var(--text-dim); text-align: center; margin-top: 2rem;">
+                    질문을 시작하면 분석 과정이 여기에 표시됩니다.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const debugWindow = document.getElementById('debug-window');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const loader = document.getElementById('loader');
+
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = `message ${role}-message`;
+            div.innerText = text;
+            chatWindow.appendChild(div);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function clearDebug() {
+            debugWindow.innerHTML = '';
+        }
+
+        function appendDebugStep(title, data, isInit = false, isError = false) {
+            const step = document.createElement('div');
+            step.className = `pipeline-step ${isInit ? 'init-step' : ''} ${isError ? 'error-step' : ''}`;
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'step-title';
+            titleDiv.style.color = isError ? '#ef4444' : (isInit ? 'var(--accent-color)' : 'var(--accent-color)');
+            titleDiv.innerText = title;
+            step.appendChild(titleDiv);
+
+            if (Array.isArray(data)) {
+                data.forEach((item, idx) => {
+                    const snippet = document.createElement('div');
+                    snippet.className = 'doc-snippet';
+                    
+                    if (typeof item === 'object') {
+                        if (item.content && item.metadata) {
+                            // Loading Step
+                            snippet.innerHTML = `<strong>[Sample ${idx+1}]</strong><br><em>Metadata: ${JSON.stringify(item.metadata)}</em><br><br>${item.content}`;
+                        } else if (item.dimension && item.values) {
+                            // Embedding Step
+                            snippet.innerHTML = `<strong>[Vector ${idx+1}]</strong><br>Dimension: ${item.dimension}<br>First 5 values: [${item.values.join(', ')}...]`;
+                        }
+                    } else {
+                        // Chunking or Doc String
+                        snippet.innerText = `[Item ${idx+1}]\n${item}`;
+                    }
+                    step.appendChild(snippet);
+                });
+            } else {
+                const info = document.createElement('div');
+                info.className = 'doc-snippet';
+                info.innerText = data;
+                step.appendChild(info);
+            }
+
+            debugWindow.appendChild(step);
+            debugWindow.scrollTop = debugWindow.scrollHeight;
+        }
+
+        async function loadInitDebug() {
+            try {
+                const response = await fetch('/debug/init');
+                const data = await response.json();
+                
+                if (data.loading.length > 0) {
+                    debugWindow.innerHTML = '<div style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(56, 189, 248, 0.1); border-radius: 0.5rem; text-align: center; font-weight: 600; color: var(--accent-color);">System Initialization Samples</div>';
+                    appendDebugStep('Step 1: Loading (Raw Data)', data.loading, true);
+                    appendDebugStep('Step 2: Chunking (Splits)', data.chunking, true);
+                    appendDebugStep('Step 3: Embedding (Vectors)', data.embedding, true);
+                    
+                    const divider = document.createElement('div');
+                    divider.style.margin = '2rem 0';
+                    divider.style.borderBottom = '1px dashed rgba(255,255,255,0.1)';
+                    debugWindow.appendChild(divider);
+                    
+                    const logTitle = document.createElement('div');
+                    logTitle.style.textAlign = 'center';
+                    logTitle.style.marginBottom = '1rem';
+                    logTitle.style.color = 'var(--text-dim)';
+                    logTitle.innerText = '--- Real-time Query Logs ---';
+                    debugWindow.appendChild(logTitle);
+                }
+            } catch (err) {
+                console.error("Init debug load failed", err);
+            }
+        }
+
+        // 페이지 로드 시 초기화 데이터 가져오기
+        window.onload = loadInitDebug;
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') askQuestion();
+        }
+
+        async function askQuestion() {
+            const question = userInput.value.trim();
+            if (!question) return;
+
+            appendMessage('user', question);
+            userInput.value = '';
+            
+            // UI 상태 변경
+            sendBtn.disabled = true;
+            loader.style.display = 'block';
+            clearDebug();
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    appendMessage('ai', "에러 발생: " + result.error);
+                } else {
+                    // 디버그 정보 먼저 표시
+                    result.debug.forEach(step => {
+                        appendDebugStep(step.node, step.data);
+                    });
+                    // 최종 답변 표시
+                    appendMessage('ai', result.answer);
+                }
+            } catch (error) {
+                appendDebugStep('FAILED', "실행 중 에러가 발생했습니다: " + error.message, false, true);
+                appendMessage('ai', "서버 연결에 실패했습니다.");
+            } finally {
+                sendBtn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
