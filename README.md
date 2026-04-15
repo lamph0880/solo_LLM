@@ -45,8 +45,8 @@ ollama pull gemma2:9b  # 고속 모델
 ```
 
 ### 3. 애플리케이션 실행
-*   **고성능 모드:** `python app.py`
-*   **고속 모드:** `python gemma2_app.py`
+*   **고성능 모드:** `python gemma4_26_app.py`
+*   **고속 모드:** `python gemma2_9b_app.py`
 
 ---
 
