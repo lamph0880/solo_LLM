@@ -165,6 +165,36 @@
             cursor: not-allowed;
         }
 
+        /* 업로드 스타일 */
+        .upload-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #image-preview {
+            display: none;
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--accent-color);
+        }
+
+        .preview-container {
+            padding: 0 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
         /* 디버그 섹션 */
         .debug-section {
             flex: 1;
@@ -286,8 +316,17 @@
                     안녕하세요! 국가 연구개발(R&D) 관련 법령 및 규정에 대해 궁금한 점을 물어보세요.
                 </div>
             </div>
+            <div class="preview-container">
+                <img id="image-preview" src="#" alt="미리보기">
+            </div>
             <div class="input-area">
-                <input type="text" id="user-input" placeholder="질문을 입력하세요..." onkeypress="handleKeyPress(event)">
+                <input type="file" id="file-input" accept="image/*,application/pdf" style="display: none;" onchange="previewImage(event)">
+                <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                </button>
+                <input type="text" id="user-input" placeholder="질문을 입력하거나 영수증을 업로드하세요..." onkeypress="handleKeyPress(event)">
                 <button id="send-btn" onclick="askQuestion()">
                     전송
                 </button>
@@ -314,13 +353,46 @@
         const chatWindow = document.getElementById('chat-window');
         const debugWindow = document.getElementById('debug-window');
         const userInput = document.getElementById('user-input');
+        const fileInput = document.getElementById('file-input');
+        const imagePreview = document.getElementById('image-preview');
         const sendBtn = document.getElementById('send-btn');
         const loader = document.getElementById('loader');
 
-        function appendMessage(role, text) {
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (file.type === 'application/pdf') {
+                    imagePreview.src = 'https://cdn-icons-png.flaticon.com/512/337/337946.png'; // 기본 PDF 아이콘
+                    imagePreview.style.display = 'block';
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreview.style.display = 'block';
+                    }
+                    reader.readAsDataURL(file);
+                }
+            }
+        }
+
+        function appendMessage(role, text, imageUrl = null) {
             const div = document.createElement('div');
             div.className = `message ${role}-message`;
-            div.innerText = text;
+            
+            if (imageUrl) {
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.style.maxWidth = '100%';
+                img.style.borderRadius = '0.5rem';
+                img.style.marginBottom = '0.5rem';
+                img.style.display = 'block';
+                div.appendChild(img);
+            }
+            
+            const textDiv = document.createElement('div');
+            textDiv.innerText = text;
+            div.appendChild(textDiv);
+            
             chatWindow.appendChild(div);
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
@@ -406,28 +478,47 @@
 
         async function askQuestion() {
             const question = userInput.value.trim();
-            if (!question) return;
-
-            appendMessage('user', question);
-            userInput.value = '';
+            const file = fileInput.files[0];
             
+            if (!question && !file) return;
+
             // UI 상태 변경
             sendBtn.disabled = true;
             loader.style.display = 'block';
+            
+            const previewUrl = imagePreview.style.display === 'block' ? imagePreview.src : null;
+            appendMessage('user', question || "영수증 분석을 시작합니다.", previewUrl);
+            
+            userInput.value = '';
+            fileInput.value = '';
+            imagePreview.style.display = 'none';
             clearDebug();
 
             try {
-                const response = await fetch('/ask', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question })
-                });
+                let response;
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    response = await fetch('/ask', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ question })
+                    });
+                }
 
                 const result = await response.json();
 
                 if (result.error) {
                     appendMessage('ai', "에러 발생: " + result.error);
                 } else {
+                    if (result.extracted_text) {
+                        appendDebugStep('OCR Extraction', result.extracted_text);
+                    }
                     // 디버그 정보 먼저 표시
                     result.debug.forEach(step => {
                         appendDebugStep(step.node, step.data);

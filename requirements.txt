@@ -1,0 +1,12 @@
+langchain
+langchain-community
+langchain-ollama
+langgraph
+pypdf
+chromadb
+sentence-transformers
+python-dotenv
+pandas
+numpy
+easyocr
+Pillow

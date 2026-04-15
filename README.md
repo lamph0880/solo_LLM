@@ -1,63 +1,70 @@
-# Gemma RAG - 국가 R&D 규정 챗봇 & 디버깅 대시보드
+# 🛡️ Solo R&D Assistant: 국가 R&D 부적정 집행 AI 감사 시스템
 
-이 프로젝트는 Ollama의 Gemma 모델과 LangChain, LangGraph, 그리고 Flask를 사용하여 국가 연구개발(R&D) 관련 법령 및 규정에 답변하는 프리미엄 RAG(Retrieval-Augmented Generation) 시스템입니다.
+본 프로젝트는 **Gemma2** 모델과 **RAG(검색 증강 생성)** 기술을 결합하여, 국가연구개발사업 법령 및 부적정 사례집을 기반으로 영수증과 연구계획서의 적정성을 자동으로 판단해주는 AI 에이전트 시스템입니다.
 
-## 📸 실행 화면
-| 메인 및 디버깅 대시보드 | 초기화 과정 시각화 |
-|:---:|:---:|
-| ![Main Screen](./test1.png) | ![Init Steps](./test2.png) |
+---
 
-## 🌟 주요 기능
-- **웹 기반 챗봇 인터페이스**: 현대적이고 직관적인 채팅 UI를 통해 질의응답을 수행합니다.
-- **실시간 디버깅 대시보드**:
-  - **Step 1 (Loading)**: 로드된 원본 문서 및 메타데이터 시각화.
-  - **Step 2 (Chunking)**: 분할된 텍스트 청크 데이터 확인.
-  - **Step 3 (Embedding)**: 벡터화된 수치 데이터(차원 및 값) 확인.
-- **로컬 LLM 및 임베딩**: 
-  - LLM: Ollama (`gemma4:26b`) 활용.
-  - 임베딩: 한국어 최적화 모델 (`jhgan/ko-sroberta-multitask`) 활용.
-- **LangGraph 워크플로우**: 검색(Retrieve) 및 생성(Generate) 단계를 투명하게 관리.
+## 🚀 주요 기능
 
-## 🛠️ 필수 준비물
-1. **Ollama 설치**: [ollama.com](https://ollama.com/)
-2. **LLM 모델 다운로드**: 
-   ```bash
-   ollama pull gemma4:26b
-   ```
-   *(참고: 모델명은 `app.py`에서 수정 가능합니다.)*
+### 1. 지능형 문서 분석 (Multimodal Audit)
+*   **영수증 OCR 분석**: 영수증 사진(JPG, PNG)을 업로드하면 `EasyOCR`로 내역을 추출하여 심야 사용, 주류 포함 여부 등을 감지합니다.
+*   **계획서 PDF 분석**: 도입하고자 하는 장비나 연구 계획이 담긴 PDF를 업로드하면 기존 법령과 대조하여 적정성을 판단합니다.
 
-## 🚀 설치 및 실행 방법
+### 2. 2단계 동적 RAG (Dynamic Query Generation)
+*   단순 검색이 아닌, LLM이 업로드된 파일 내용을 먼저 파악하여 **최적의 검색 키워드(예: 연구장비 도입 기준, 회의비 집행 원칙 등)**를 스스로 생성하여 지식 베이스(PDF)에서 관련 정보를 찾아옵니다.
 
-### 1. 환경 구성 및 패키지 설치
+### 3. 실시간 디버깅 대시보드
+*   데이터 로딩, 청킹, 임베딩부터 최종 답변 생성까지의 전 과정을 시각적으로 확인할 수 있는 웹 대시보드를 제공합니다.
+
+---
+
+## 🛠️ 설치 및 실행 방법
+
+### 1. 필수 라이브러리 설치
 ```bash
-conda activate solo  # 또는 사용 중인 가상환경
 pip install -r requirements.txt
-pip install flask flask-cors sentence-transformers langchain-chroma
+pip install easyocr reportlab Pillow
 ```
 
-### 2. 웹 서버 실행
-```bash
-python app.py
-```
-실행 후 브라우저에서 `http://localhost:5000` 접속
+### 2. Ollama 모델 다운로드
+사용 중인 그래픽카드 사양에 맞는 모델을 내려받으세요.
+*   **RTX 3070 (8GB VRAM) 이하:** `ollama pull gemma2:9b` (권장)
+*   **고성능 GPU (20GB VRAM 이상):** `ollama pull gemma2:27b`
 
-## ⚠️ 사용 시 주의사항 (중요)
+### 3. 애플리케이션 실행
+*   **최적화 버전 실행 (추천):**
+    ```bash
+    python gemma2_app.py
+    ```
+*   **기본 버전 실행:**
+    ```bash
+    python app.py
+    ```
 
-### 1. Ollama 연결 설정 (WSL 사용 시)
-- **IP 주소**: 현재 `app.py`의 `OLLAMA_BASE_URL`은 WSL 환경에 최적화된 `172.27.48.1`로 설정되어 있습니다. 
-- **일반 환경**: 만약 Windows/Linux 로컬에서 직접 실행한다면 `http://localhost:11434`로 수정이 필요합니다.
-- **Ollama 환경 변수**: 호스트(Windows)의 Ollama가 외부 접속을 허용하도록 설정되어야 합니다. (Windows 시스템 환경 변수 `OLLAMA_HOST`를 `0.0.0.0`으로 설정 권장)
+---
 
-### 2. 임베딩 모델
-- 본 프로젝트는 한국어 검색 성능 향상을 위해 HuggingFace의 전용 모델을 사용합니다. 최초 실행 시 모델 다운로드(약 400MB) 시간이 소요됩니다.
+## ⚠️ 실행 전 주의사항 (필독)
 
-### 3. 데이터 보안
-- 프로젝트에 포함된 PDF 파일이 외부 공개 금지 문서인 경우 GitHub 등 공용 저장소 업로드 시 주의하십시오. (본 샘플의 법령 데이터는 공개 자료입니다.)
-- 프로젝트 내 포함된 IP 주소는 **사설 IP**이므로 공개되어도 보안상 문제가 되지 않습니다.
+1.  **VRAM 관리**: `RTX 3070(8GB)` 환경에서 큰 모델을 돌리면 속도가 매우 느려집니다. 반드시 `gemma2:9b` 모델을 사용하고, `gemma2_app.py`를 실행하세요.
+2.  **폰트 경로**: PDF 생성 시 **나눔고딕(NanumGothic)** 폰트를 사용합니다. 리눅스 환경에서는 `/usr/share/fonts/truetype/nanum/` 경로에 폰트가 설치되어 있어야 합니다.
+3.  **지식 베이스(PDF) 갱신**: 새로운 규정 PDF를 추가한 경우, 반드시 기존의 `chroma_db` 폴더를 삭제한 후 서버를 재시작해야 새로운 내용이 인덱싱됩니다.
+4.  **Ollama 주소**: 현재 코드는 WSL 환경에서 호스트 OS의 Ollama에 접속하도록 `172.27.48.1:11434` 주소로 설정되어 있습니다. 환경에 따라 `localhost:11434`로 수정이 필요할 수 있습니다.
 
-## 📁 프로젝트 구조
-- `app.py`: Flask 웹 백엔드 및 RAG 핵심 로직.
-- `templates/index.html`: 챗봇 UI 및 디버깅 대시보드 프론트엔드.
-- `gemma_rag.py`: 터미널 기반 실행 스크립트.
-- `chroma_db/`: 벡터 데이터베이스 저장 폴더.
-- `*.pdf`: 학습용 국가 R&D 관련 문서.
+---
+
+## 📸 테스트 가이드
+
+### 테스트 이미지 자산 (`test1.png` ~ `test5.png`)
+제공된 테스트 이미지는 다음과 같은 시나리오를 포함하고 있습니다:
+*   **식대/회의비**: 심야 시간 사용, 주류 포함, 유흥업소 사용 등 부적정 사례 테스트용.
+*   **물품 구입**: 고용량 GPU, 연구 장비 구매 시 자산 등록 및 중앙 구매 규정 위반 여부 테스트용.
+*   **계획서 분석**: 새로 생성된 `연구개발계획서_RTX4090.pdf`를 업로드하여 RAG 시스템이 규정집과 계획서를 대조하는 기능 테스트 가능.
+
+---
+
+## 📁 주요 파일 구조
+*   `app.py`: 기본 실행 파일 (이미지/PDF 업로드 분석 지원)
+*   `gemma2_app.py`: RTX 3070 최적화 실행 파일
+*   `templates/index.html`: 웹 대시보드 UI
+*   `requirements.txt`: 의존성 목록
+*   `chroma_db/`: 벡터 데이터베이스 저장 폴더

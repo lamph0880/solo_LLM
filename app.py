@@ -9,6 +9,10 @@ from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+import easyocr
+import numpy as np
+from PIL import Image
+import io
 
 app = Flask(__name__)
 CORS(app)
@@ -32,6 +36,12 @@ INIT_DEBUG_DATA = {
     "chunking": [],
     "embedding": []
 }
+
+# OCR 리더 초기화 (한국어, 영어) - 모델 로딩에 시간이 걸릴 수 있습니다.
+try:
+    reader = easyocr.Reader(['ko', 'en'], gpu=True)
+except:
+    reader = easyocr.Reader(['ko', 'en'], gpu=False)
 
 class GraphState(TypedDict):
     question: str
@@ -195,6 +205,103 @@ def ask():
             "debug": debug_info
         })
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    global RAG_APP
+    if RAG_APP is None:
+        return jsonify({"error": "RAG 시스템이 초기화되지 않았습니다."}), 500
+
+    if 'file' not in request.files:
+        return jsonify({"error": "파일이 업로드되지 않았습니다."}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "선택된 파일이 없습니다."}), 400
+
+    filename = file.filename.lower()
+    extracted_text = ""
+
+    try:
+        if filename.endswith(('.png', '.jpg', '.jpeg')):
+            # OCR 처리
+            image_bytes = file.read()
+            results = reader.readtext(image_bytes)
+            extracted_text = " ".join([res[1] for res in results])
+        elif filename.endswith('.pdf'):
+            # 임시 파일 저장 후 PDF 텍스트 추출
+            temp_path = os.path.join("./", "temp_upload.pdf")
+            file.save(temp_path)
+            loader = PyPDFLoader(temp_path)
+            pages = loader.load()
+            extracted_text = " ".join([page.page_content for page in pages])
+            os.remove(temp_path) # 사용 후 삭제
+        else:
+            return jsonify({"error": "지원하지 않는 파일 형식입니다. (이미지 또는 PDF만 가능)"}), 400
+        
+        if not extracted_text.strip():
+            return jsonify({"error": "파일에서 텍스트를 추출하지 못했습니다."}), 400
+
+        # 1단계: 내용 성격 파악 및 검색 키워드 자동 생성
+        llm_for_query = ChatOllama(model=MODEL_NAME, base_url=OLLAMA_BASE_URL)
+        query_gen_prompt = (
+            "당신은 국가연구개발사업 행정 전문가입니다. 아래 추출된 텍스트를 분석하여, "
+            "이 내용(영수증 또는 계획서)의 적정성을 규정집에서 확인하기 위해 검색해야 할 핵심 키워드 3개를 뽑아주세요.\n"
+            f"추출 텍스트: '{extracted_text}'\n"
+            "출력 형식: 키워드1, 키워드2, 키워드3 (설명 없이 키워드만 출력)"
+        )
+        
+        try:
+            suggested_query = llm_for_query.invoke(query_gen_prompt).content.strip()
+            retrieval_query = f"국가연구개발사업 {suggested_query}"
+        except:
+            retrieval_query = "국가연구개발사업 연구개발비 사용 기준 부적정 사례"
+
+        # 2단계: 답변 생성용 범용 지침
+        audit_instruction = (
+            f"다음은 업로드된 파일(이미지/PDF)에서 추출된 데이터입니다: '{extracted_text}'.\n"
+            "이 데이터 내용이 국가연구개발사업 관련 법령이나 연구개발비 사용 기준에 적절한지 분석해 주세요.\n"
+            "기존 RAG로 저장된 문서(규정, 사례집)의 내용과 대조하여 답변해야 합니다.\n"
+            "판정 결과는 [적정], [부적정], [확인필요] 중 하나로 명시하고 그 이유를 구체적으로 설명하세요."
+        )
+
+        debug_info = []
+        debug_info.append({
+            "node": "Query Generation",
+            "status": "Success",
+            "data": f"Generated Keywords: {suggested_query}"
+        })
+
+        # 3단계: 검색 및 답변 생성
+        inputs = {"question": retrieval_query}
+        for output in RAG_APP.stream(inputs):
+            for key, value in output.items():
+                if key == "retrieve":
+                    debug_info.append({
+                        "node": "Retrieve",
+                        "status": "Success",
+                        "data": value["context"]
+                    })
+        
+        # 실제 답변 생성
+        state = {"question": audit_instruction, "context": [d["data"] for d in debug_info if d["node"] == "Retrieve"][0]}
+        answer_result = generate(state)
+        final_answer = answer_result["answer"]
+        
+        debug_info.append({
+            "node": "Generate",
+            "status": "Success",
+            "data": "Investigation completed against existing RAG knowledge base."
+        })
+        
+        return jsonify({
+            "extracted_text": extracted_text[:1000] + "...", # 너무 길면 생략
+            "answer": final_answer,
+            "debug": debug_info
+        })
+    except Exception as e:
+        print(f"File processing error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
