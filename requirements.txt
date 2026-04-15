@@ -9,4 +9,7 @@ python-dotenv
 pandas
 numpy
 easyocr
+reportlab
 Pillow
+flask
+flask-cors

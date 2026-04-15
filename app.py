@@ -19,9 +19,9 @@ CORS(app)
 
 # --- 설정 (Configuration) ---
 PDF_FILES = [
-    "국가 R&D 부적정 사례집.pdf",
-    "국가연구개발사업 연구개발비 사용 기준.pdf",
-    "국가연구개발혁신법.pdf"
+    "data/국가 R&D 부적정 사례집.pdf",
+    "data/국가연구개발사업 연구개발비 사용 기준.pdf",
+    "data/국가연구개발혁신법.pdf"
 ]
 DB_PATH = "./chroma_db"
 MODEL_NAME = "gemma4:26b" 
